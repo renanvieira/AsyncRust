@@ -1,9 +1,9 @@
 use mio::Interest;
-use runtime::
 
 use crate::{
     future::{Future, PollState},
-    runtime,
+    runtime::reactor,
+    Waker,
 };
 use std::io::{ErrorKind, Read, Write};
 
@@ -54,18 +54,14 @@ impl HttpGetFuture {
 impl Future for HttpGetFuture {
     type Output = String;
 
-    fn poll(&mut self) -> PollState<Self::Output> {
+    fn poll(&mut self, waker: &Waker) -> PollState<Self::Output> {
         if self.stream.is_none() {
             println!("FIRST POLL - START OPERATION");
             self.write_request();
-            runtime::registry()
-                .register(
-                    self.stream.as_mut().unwrap(),
-                    mio::Token(0),
-                    Interest::READABLE,
-                )
-                .unwrap();
-            return PollState::NotReady;
+            let stream = self.stream.as_mut().unwrap();
+
+            reactor().register(stream, Interest::READABLE, self.id);
+            reactor().set_waker(waker, self.id);
         }
 
         let mut buff = vec![0_u8; 4096];
@@ -74,6 +70,7 @@ impl Future for HttpGetFuture {
             match self.stream.as_mut().unwrap().read(&mut buff) {
                 Ok(0) => {
                     let s = String::from_utf8_lossy(&self.buffer);
+                    reactor().deregister(self.stream.as_mut().unwrap(), self.id);
                     break PollState::Ready(s.to_string());
                 }
                 Ok(n) => {
@@ -81,6 +78,7 @@ impl Future for HttpGetFuture {
                     continue;
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    reactor().set_waker(waker, self.id);
                     break PollState::NotReady;
                 }
                 Err(e) if e.kind() == ErrorKind::Interrupted => {

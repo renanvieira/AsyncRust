@@ -1,0 +1,11 @@
+[package]
+name = "coroutine-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "coroutine-runtime"
+path = "src/main_corofied.rs" 
+
+[dependencies]
+mio = { version = "1.0.2", features = ["net", "os-poll"] }

@@ -8,9 +8,8 @@ use future::*;
 
 
 fn main(){
-    let future = async_main();
-    let mut runtime=Runtime::new();
-    runtime.block_on(future);
+    let mut executor = runtime::init();
+    executor.block_on(async_main());
 }
 
 coroutine fn async_main(){
